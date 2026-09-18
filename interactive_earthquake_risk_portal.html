@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spatio-Temporal CUSUM Earthquake Risk Portal</title>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    /* Custom pulsing effect for CUSUM Anomaly markers */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.8); opacity: 0.8; }
+      50% { transform: scale(1.4); opacity: 0.3; }
+      100% { transform: scale(0.8); opacity: 0.8; }
+    }
+    .cusum-pulse {
+      border: 3px solid #ef4444;
+      background-color: rgba(239, 68, 68, 0.25);
+      border-radius: 50%;
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 flex flex-col h-screen overflow-hidden font-sans">
+
+  <!-- Header -->
+  <header class="bg-slate-800 border-b border-slate-700 px-6 py-3 flex items-center justify-between shadow-md">
+    <div class="flex items-center space-x-3">
+      <div class="p-2 bg-red-600 rounded-lg shadow-lg">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg leading-tight">Spatio-Temporal CUSUM Risk Portal</h1>
+        <p class="text-xs text-slate-400">USGS Live Seismic Data & Change-Point Swarm Detection</p>
+      </div>
+    </div>
+    
+    <div id="stats-banner" class="flex items-center space-x-6 text-sm">
+      <div><span class="text-slate-400">Total Events:</span> <span id="stat-events" class="font-bold text-indigo-400">0</span></div>
+      <div><span class="text-slate-400">Max Magnitude:</span> <span id="stat-maxmag" class="font-bold text-amber-400">0.0</span></div>
+      <div><span class="text-slate-400">CUSUM Swarm Alerts:</span> <span id="stat-alerts" class="font-bold text-red-500">0</span></div>
+    </div>
+  </header>
+
+  <!-- Main Grid Layout -->
+  <div class="flex flex-1 relative overflow-hidden">
+    
+    <!-- Sidebar Controls -->
+    <aside class="w-80 bg-slate-800/95 border-r border-slate-700 p-5 flex flex-col space-y-6 z-10 overflow-y-auto">
+      
+      <!-- USGS Feed Selector -->
+      <div>
+        <label class="block text-xs font-semibold uppercase text-slate-400 mb-2">USGS Feed Source</label>
+        <select id="feed-select" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+          <option value="all_day">Past 24 Hours (All)</option>
+          <option value="all_week">Past 7 Days (All)</option>
+          <option value="all_month" selected>Past 30 Days (All)</option>
+          <option value="4.5_month">Past 30 Days (M4.5+)</option>
+        </select>
+      </div>
+
+      <!-- Minimum Magnitude Filter -->
+      <div>
+        <div class="flex justify-between text-xs font-semibold uppercase text-slate-400 mb-1">
+          <span>Min Magnitude Filter</span>
+          <span id="mag-val" class="text-indigo-400">0.0</span>
+        </div>
+        <input id="mag-slider" type="range" min="0" max="7" step="0.5" value="0" class="w-full accent-indigo-500 cursor-pointer" />
+      </div>
+
+      <hr class="border-slate-700" />
+
+      <!-- CUSUM Parameters -->
+      <div class="space-y-4">
+        <h3 class="text-xs font-semibold uppercase text-red-400 tracking-wider">CUSUM Algorithm Tuning</h3>
+        
+        <!-- Spatial Grid Deg -->
+        <div>
+          <div class="flex justify-between text-xs text-slate-300 mb-1">
+            <span>Grid Bin Size (° Deg)</span>
+            <span id="grid-val" class="text-red-400">2.0°</span>
+          </div>
+          <input id="grid-slider" type="range" min="0.5" max="5.0" step="0.5" value="2.0" class="w-full accent-red-500 cursor-pointer" />
+        </div>
+
+        <!-- Slack Parameter k -->
+        <div>
+          <div class="flex justify-between text-xs text-slate-300 mb-1">
+            <span>Slack Allowance (k factor)</span>
+            <span id="k-val" class="text-red-400">0.5</span>
+          </div>
+          <input id="k-slider" type="range" min="0.1" max="2.0" step="0.1" value="0.5" class="w-full accent-red-500 cursor-pointer" />
+        </div>
+
+        <!-- Alarm Threshold h -->
+        <div>
+          <div class="flex justify-between text-xs text-slate-300 mb-1">
+            <span>Threshold Factor (h multiplier)</span>
+            <span id="h-val" class="text-red-400">3.5</span>
+          </div>
+          <input id="h-slider" type="range" min="1.0" max="10.0" step="0.5" value="3.5" class="w-full accent-red-500 cursor-pointer" />
+        </div>
+      </div>
+
+      <!-- Execute Button -->
+      <button id="recalculate-btn" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-lg transition-all text-sm flex items-center justify-center space-x-2">
+        <span>Run CUSUM Detection</span>
+      </button>
+
+      <!-- Alert Panel Feed -->
+      <div class="flex-1 flex flex-col min-h-0">
+        <h3 class="text-xs font-semibold uppercase text-slate-400 mb-2">Detected Swarm Anomalies</h3>
+        <div id="alerts-container" class="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
+          <div class="p-3 bg-slate-900/50 rounded text-slate-500 italic">No anomalies evaluated yet.</div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Map Container -->
+    <main class="flex-1 relative">
+      <div id="map" class="w-full h-full bg-slate-950"></div>
+    </main>
+
+  </div>
+
+  <!-- Application Script -->
+  <script>
+    // Initialize Leaflet Map with Dark Tile Layer
+    const map = L.map('map', { zoomControl: false }).setView([20, 0], 2);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+      maxZoom: 18
+    }).addTo(map);
+
+    // Layers
+    const eqLayer = L.layerGroup().addTo(map);
+    const cusumLayer = L.layerGroup().addTo(map);
+
+    let rawGeoJSONFeatures = [];
+
+    // Fetch USGS Data
+    async function loadUSGSFeed(feedType) {
+      document.getElementById('stat-events').innerText = 'Loading...';
+      try {
+        const res = await fetch(`https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${feedType}.geojson`);
+        const data = await res.json();
+        rawGeoJSONFeatures = data.features;
+        processAndRender();
+      } catch (err) {
+        console.error("Failed to load USGS feed:", err);
+        alert("Error fetching USGS GeoJSON feed.");
+      }
+    }
+
+    // Process CUSUM Statistics and Render Map
+    function processAndRender() {
+      eqLayer.clearLayers();
+      cusumLayer.clearLayers();
+
+      const minMag = parseFloat(document.getElementById('mag-slider').value);
+      const gridDeg = parseFloat(document.getElementById('grid-slider').value);
+      const kFactor = parseFloat(document.getElementById('k-slider').value);
+      const hFactor = parseFloat(document.getElementById('h-slider').value);
+
+      // Filter features
+      const features = rawGeoJSONFeatures.filter(f => (f.properties.mag ?? 0) >= minMag);
+
+      // Update Basic Stats
+      document.getElementById('stat-events').innerText = features.length;
+      const maxMag = features.reduce((max, f) => Math.max(max, f.properties.mag ?? 0), 0);
+      document.getElementById('stat-maxmag').innerText = maxMag.toFixed(1);
+
+      // Render Earthquakes on Map
+      features.forEach(f => {
+        const [lon, lat] = f.geometry.coordinates;
+        const mag = f.properties.mag ?? 1;
+        const place = f.properties.place || "Unknown Location";
+
+        const circle = L.circleMarker([lat, lon], {
+          radius: Math.max(3, mag * 2.5),
+          color: getMagColor(mag),
+          fillColor: getMagColor(mag),
+          fillOpacity: 0.6,
+          weight: 1
+        }).bindPopup(`<strong>${place}</strong><br/>Magnitude: M ${mag}<br/>Depth: ${f.geometry.coordinates[2]} km`);
+        
+        eqLayer.addLayer(circle);
+      });
+
+      // Execute Spatio-Temporal CUSUM
+      const anomalies = calculateCUSUM(features, gridDeg, kFactor, hFactor);
+      document.getElementById('stat-alerts').innerText = anomalies.length;
+
+      // Render Anomalies & Populate Panel
+      const alertsContainer = document.getElementById('alerts-container');
+      alertsContainer.innerHTML = '';
+
+      if (anomalies.length === 0) {
+        alertsContainer.innerHTML = `<div class="p-3 bg-slate-900/50 rounded text-slate-500 italic">No spatial CUSUM anomalies detected for selected parameters.</div>`;
+      } else {
+        anomalies.forEach(a => {
+          // Add pulse circle to map
+          const radiusMeters = (gridDeg * 111) * 500; // deg to approx radius
+          const anomalyCircle = L.circle([a.latCenter, a.lonCenter], {
+            radius: radiusMeters,
+            color: '#ef4444',
+            fillColor: '#ef4444',
+            fillOpacity: 0.2,
+            weight: 2,
+            dashArray: '4, 4'
+          }).bindPopup(`<strong>CUSUM Anomaly Zone</strong><br/>Score: ${a.cusumScore.toFixed(2)}<br/>Threshold: ${a.threshold.toFixed(2)}<br/>Events in Bin: ${a.count}`);
+
+          cusumLayer.addLayer(anomalyCircle);
+
+          // Add Sidebar Alert Card
+          const card = document.createElement('div');
+          card.className = 'p-2.5 bg-red-950/40 border border-red-800/50 rounded hover:bg-red-900/40 cursor-pointer transition-colors';
+          card.innerHTML = `
+            <div class="flex justify-between font-bold text-red-400">
+              <span>Cell (${a.latCenter.toFixed(1)}°, ${a.lonCenter.toFixed(1)}°)</span>
+              <span>Score: ${a.cusumScore.toFixed(1)}</span>
+            </div>
+            <div class="text-slate-400 mt-1">Events: ${a.count} | Max Mag: M${a.maxMag.toFixed(1)}</div>
+          `;
+          card.onclick = () => map.flyTo([a.latCenter, a.lonCenter], 6);
+          alertsContainer.appendChild(card);
+        });
+      }
+    }
+
+    // Core CUSUM Calculation Logic
+    function calculateCUSUM(features, gridDeg, kFactor, hFactor) {
+      const bins = {};
+
+      // Spatial Binning & Energy Calculation (E = 10^(1.5*M))
+      features.forEach(f => {
+        const [lon, lat] = f.geometry.coordinates;
+        const mag = f.properties.mag ?? 0;
+        const energy = Math.pow(10, 1.5 * mag);
+        
+        const latBin = Math.floor(lat / gridDeg) * gridDeg;
+        const lonBin = Math.floor(lon / gridDeg) * gridDeg;
+        const key = `${latBin},${lonBin}`;
+
+        if (!bins[key]) {
+          bins[key] = {
+            latCenter: latBin + gridDeg / 2,
+            lonCenter: lonBin + gridDeg / 2,
+            energies: [],
+            maxMag: mag
+          };
+        }
+        bins[key].energies.push(energy);
+        bins[key].maxMag = Math.max(bins[key].maxMag, mag);
+      });
+
+      const anomalies = [];
+
+      // Evaluate CUSUM statistic per spatial bin
+      Object.values(bins).forEach(bin => {
+        if (bin.energies.length < 3) return;
+
+        const sum = bin.energies.reduce((a, b) => a + b, 0);
+        const mu = sum / bin.energies.length;
+        
+        // Variance calculation
+        const variance = bin.energies.reduce((a, b) => a + Math.pow(b - mu, 2), 0) / bin.energies.length;
+        const stdDev = Math.sqrt(variance) || 1e-6;
+
+        const k = kFactor * stdDev;
+        const h = hFactor * stdDev;
+
+        let S = 0;
+        let maxS = 0;
+
+        bin.energies.forEach(e => {
+          S = Math.max(0, S + (e - mu - k));
+          if (S > maxS) maxS = S;
+        });
+
+        if (maxS > h) {
+          anomalies.push({
+            latCenter: bin.latCenter,
+            lonCenter: bin.lonCenter,
+            cusumScore: maxS,
+            threshold: h,
+            count: bin.energies.length,
+            maxMag: bin.maxMag
+          });
+        }
+      });
+
+      return anomalies;
+    }
+
+    // Color Helper for Magnitudes
+    function getMagColor(m) {
+      return m > 6 ? '#ef4444' :
+             m > 4.5 ? '#f97316' :
+             m > 3.0 ? '#eab308' : '#22c55e';
+    }
+
+    // UI Event Listeners
+    document.getElementById('mag-slider').oninput = (e) => {
+      document.getElementById('mag-val').innerText = parseFloat(e.target.value).toFixed(1);
+    };
+    document.getElementById('grid-slider').oninput = (e) => {
+      document.getElementById('grid-val').innerText = `${parseFloat(e.target.value).toFixed(1)}°`;
+    };
+    document.getElementById('k-slider').oninput = (e) => {
+      document.getElementById('k-val').innerText = parseFloat(e.target.value).toFixed(1);
+    };
+    document.getElementById('h-slider').oninput = (e) => {
+      document.getElementById('h-val').innerText = parseFloat(e.target.value).toFixed(1);
+    };
+
+    document.getElementById('recalculate-btn').onclick = processAndRender;
+    document.getElementById('feed-select').onchange = (e) => loadUSGSFeed(e.target.value);
+
+    // Initial Startup
+    loadUSGSFeed('all_month');
+  </script>
+</body>
+</html>
