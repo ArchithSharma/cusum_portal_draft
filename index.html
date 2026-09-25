@@ -19,24 +19,94 @@
       color: #f8fafc; 
     }
     #sidebar { 
-      width: 400px; 
+      width: 380px; 
+      min-width: 380px;
       background: #1e293b; 
-      padding: 20px; 
+      padding: 18px; 
       display: flex; 
       flex-direction: column; 
-      gap: 14px; 
+      gap: 12px; 
       border-right: 1px solid #334155; 
-      z-index: 1000; 
+      z-index: 1001; 
       overflow-y: auto; 
       box-shadow: 4px 0 12px rgba(0,0,0,0.3);
     }
-    #map { flex: 1; height: 100%; background: #020617; }
+    #map-container {
+      position: relative;
+      flex: 1;
+      height: 100%;
+    }
+    #map { width: 100%; height: 100%; background: #020617; }
     
-    h2 { font-size: 1.15rem; color: #f1f5f9; border-bottom: 1px solid #334155; padding-bottom: 8px; font-weight: 700; }
-    .section-title { font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; margin-top: 4px; }
+    /* Playbar Styling */
+    #playbar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    .playbar-btn {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .playbar-btn:hover { background: #2563eb; }
+    .playbar-btn:active { transform: scale(0.96); }
+    .playbar-btn.secondary { background: #334155; color: #cbd5e1; padding: 6px 10px; }
+    .playbar-btn.secondary:hover { background: #475569; color: #fff; }
+
+    .playbar-time-info {
+      display: flex;
+      flex-direction: column;
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #38bdf8;
+      min-width: 210px;
+      line-height: 1.3;
+    }
+
+    .timeline-slider-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+    }
+
+    select.speed-select {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    h2 { font-size: 1.1rem; color: #f1f5f9; border-bottom: 1px solid #334155; padding-bottom: 6px; font-weight: 700; }
+    .section-title { font-size: 0.72rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; margin-top: 2px; }
     
-    .control-group { display: flex; flex-direction: column; gap: 6px; }
-    .label-val { display: flex; justify-content: space-between; font-size: 0.82rem; color: #cbd5e1; }
+    .control-group { display: flex; flex-direction: column; gap: 4px; }
+    .label-val { display: flex; justify-content: space-between; font-size: 0.8rem; color: #cbd5e1; }
     
     input[type="range"] {
       width: 100%;
@@ -48,9 +118,9 @@
       background: #0f172a; 
       border: 1px solid #334155; 
       color: #f8fafc; 
-      padding: 8px 10px; 
+      padding: 7px 10px; 
       border-radius: 6px; 
-      font-size: 0.85rem; 
+      font-size: 0.82rem; 
       outline: none; 
       width: 100%;
     }
@@ -62,37 +132,25 @@
       background: #2563eb; 
       color: white; 
       border: none; 
-      padding: 9px; 
+      padding: 8px; 
       border-radius: 6px; 
       font-weight: 600; 
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       cursor: pointer; 
       transition: background 0.2s; 
-      margin-top: 4px;
+      margin-top: 2px;
     }
     button.btn-primary:hover { background: #1d4ed8; }
 
-    .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #cbd5e1; cursor: pointer; }
-    .checkbox-group input { width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer; }
-
-    .time-display {
-      background: #0f172a;
-      border: 1px solid #334155;
-      padding: 8px 10px;
-      border-radius: 6px;
-      font-family: monospace;
-      font-size: 0.78rem;
-      color: #38bdf8;
-      text-align: center;
-      line-height: 1.4;
-    }
+    .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #cbd5e1; cursor: pointer; }
+    .checkbox-group input { width: 15px; height: 15px; accent-color: #3b82f6; cursor: pointer; }
 
     .status-msg {
-      font-size: 0.78rem;
-      padding: 10px;
+      font-size: 0.75rem;
+      padding: 8px;
       border-radius: 6px;
       display: none;
-      line-height: 1.4;
+      line-height: 1.3;
     }
     .status-msg.loading { display: block; background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6; }
     .status-msg.error { display: block; background: #450a0a; color: #fca5a5; border: 1px solid #ef4444; }
@@ -105,25 +163,25 @@
       border-left: 3px solid #3b82f6; 
     }
     .stats-card.alert { border-left-color: #ef4444; }
-    .stats-title { font-size: 0.68rem; color: #64748b; text-transform: uppercase; }
-    .stats-value { font-size: 1.15rem; font-weight: bold; color: #f8fafc; margin-top: 2px; }
+    .stats-title { font-size: 0.65rem; color: #64748b; text-transform: uppercase; }
+    .stats-value { font-size: 1.1rem; font-weight: bold; color: #f8fafc; margin-top: 2px; }
 
     .legend { 
       background: #0f172a; 
       padding: 10px; 
       border-radius: 6px; 
       border: 1px solid #334155;
-      font-size: 0.78rem; 
+      font-size: 0.75rem; 
       line-height: 1.4; 
       color: #94a3b8; 
     }
     .legend-gradient {
-      height: 8px;
+      height: 7px;
       border-radius: 4px;
       background: linear-gradient(to right, blue, cyan, lime, yellow, red);
-      margin: 6px 0;
+      margin: 5px 0;
     }
-    .legend-labels { display: flex; justify-content: space-between; font-size: 0.68rem; color: #64748b; }
+    .legend-labels { display: flex; justify-content: space-between; font-size: 0.65rem; color: #64748b; }
     .legend-item { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
     .legend-color { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
   </style>
@@ -158,29 +216,22 @@
     <label class="section-title">Historical API Query Range</label>
     <div class="grid-2col">
       <div>
-        <span style="font-size: 0.72rem; color: #aaa;">Start Date</span>
+        <span style="font-size: 0.7rem; color: #aaa;">Start Date</span>
         <input type="date" id="hist-start" value="2023-01-01">
       </div>
       <div>
-        <span style="font-size: 0.72rem; color: #aaa;">End Date</span>
+        <span style="font-size: 0.7rem; color: #aaa;">End Date</span>
         <input type="date" id="hist-end" value="2025-01-01">
       </div>
     </div>
-    <div style="margin-top: 4px;">
-      <span style="font-size: 0.72rem; color: #aaa;">Min Magnitude (M5.0+ recommended for 2+ yrs)</span>
+    <div style="margin-top: 2px;">
+      <span style="font-size: 0.7rem; color: #aaa;">Min Magnitude (M5.0+ recommended for 2+ yrs)</span>
       <input type="number" id="hist-min-mag" value="5.0" step="0.5" min="0" max="10">
     </div>
     <button id="fetch-hist-btn" class="btn-primary">Query USGS Database</button>
   </div>
 
   <div id="status-msg" class="status-msg"></div>
-
-  <!-- Time Slider Controls -->
-  <div class="control-group">
-    <label class="section-title">Historical Scrubbing Controls</label>
-    <input type="range" id="time-slider" min="0" max="1000" value="1000">
-    <div class="time-display" id="time-display-text">Load dataset to activate scrubbing...</div>
-  </div>
 
   <div class="control-group">
     <div class="label-val">
@@ -263,14 +314,44 @@
   </div>
 </div>
 
-<div id="map"></div>
+<div id="map-container">
+  <!-- Interactive Top Playbar Overlay -->
+  <div id="playbar">
+    <button id="play-pause-btn" class="playbar-btn">
+      <span id="play-btn-icon">▶</span>
+      <span id="play-btn-text">Play</span>
+    </button>
+
+    <button id="step-prev-btn" class="playbar-btn secondary" title="Step Backward">⏮</button>
+    <button id="step-next-btn" class="playbar-btn secondary" title="Step Forward">⏭</button>
+
+    <div class="timeline-slider-container">
+      <input type="range" id="time-slider" min="0" max="1000" value="1000">
+    </div>
+
+    <select id="speed-select" class="speed-select">
+      <option value="0.5">0.5x Speed</option>
+      <option value="1" selected>1x Speed</option>
+      <option value="2">2x Speed</option>
+      <option value="5">5x Speed</option>
+      <option value="10">10x Speed</option>
+    </select>
+
+    <div class="playbar-time-info" id="time-display-text">
+      <span>Start: --</span>
+      <span>End: --</span>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
 
 <!-- Leaflet JS & Heatmap Library -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
 <script>
-  // Base Maps
+  // Map Setup
   const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap &copy; CARTO',
     subdomains: 'abcd',
@@ -298,7 +379,7 @@
     "Dark Canvas": darkLayer,
     "Terrain & Topo": terrainLayer,
     "Satellite Imagery": satelliteLayer
-  }).addTo(map);
+  }, null, { position: 'topright' }).addTo(map);
 
   const quakeLayer = L.layerGroup().addTo(map);
   const cusumAnomalyLayer = L.layerGroup().addTo(map);
@@ -308,6 +389,10 @@
   let allFeatures = [];
   let minTimeMs = 0;
   let maxTimeMs = 0;
+
+  // Playbar State Variables
+  let isPlaying = false;
+  let playTimer = null;
 
   async function loadTectonicPlates() {
     try {
@@ -335,10 +420,11 @@
     document.getElementById('status-msg').style.display = 'none';
   }
 
-  // Robust USGS Historical Fetch Engine
+  // Fetch API Logic
   async function fetchUSGSHistorical(startDate, endDate, minMag) {
     showStatus(`Querying USGS Database (${startDate} to ${endDate}, M >= ${minMag})...`);
-    
+    stopPlayback();
+
     const startIso = `${startDate}T00:00:00`;
     const endIso = `${endDate}T23:59:59`;
     const url = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${startIso}&endtime=${endIso}&minmagnitude=${minMag}&eventtype=earthquake&orderby=time-asc&limit=20000`;
@@ -353,7 +439,7 @@
       hideStatus();
 
       if (data.features && data.features.length >= 20000) {
-        showStatus(`Warning: Max 20,000 event query limit reached. Narrow the date range or increase minimum magnitude for complete coverage.`, true);
+        showStatus(`Warning: Max 20,000 event limit reached. Narrow date range or increase min magnitude.`, true);
       }
 
       return (data.features || []).filter(f => f.geometry && f.geometry.coordinates);
@@ -365,6 +451,7 @@
 
   async function fetchUSGSSummaryFeed(feedType) {
     showStatus(`Fetching real-time USGS feed (${feedType})...`);
+    stopPlayback();
     const url = `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${feedType}.geojson`;
     try {
       const response = await fetch(url);
@@ -378,6 +465,7 @@
     }
   }
 
+  // Main Execution & Point Process Calculation
   function processSpatiotemporalModel() {
     quakeLayer.clearLayers();
     cusumAnomalyLayer.clearLayers();
@@ -393,9 +481,10 @@
     const currentEndTimeMs = minTimeMs + sliderPercent * (maxTimeMs - minTimeMs);
     const currentStartTimeMs = currentEndTimeMs - windowMs;
 
+    // Display formatted time on Playbar
     document.getElementById('time-display-text').innerHTML = 
-      `<b>Start:</b> ${new Date(currentStartTimeMs).toISOString().replace('T', ' ').slice(0, 16)} UTC<br/>` +
-      `<b>End:  </b> ${new Date(currentEndTimeMs).toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+      `<span><b>Start:</b> ${new Date(currentStartTimeMs).toISOString().replace('T', ' ').slice(0, 16)}</span>` +
+      `<span><b>End:  </b> ${new Date(currentEndTimeMs).toISOString().replace('T', ' ').slice(0, 16)}</span>`;
 
     const activeFeatures = allFeatures.filter(f => {
       const t = f.properties.time;
@@ -512,7 +601,64 @@
     document.getElementById('stat-anomalies').textContent = anomalyCount;
   }
 
+  // Playbar Control Logic
+  function startPlayback() {
+    if (isPlaying) return;
+    const slider = document.getElementById('time-slider');
+    if (parseFloat(slider.value) >= 1000) {
+      slider.value = 0;
+    }
+    
+    isPlaying = true;
+    document.getElementById('play-btn-icon').textContent = '⏸';
+    document.getElementById('play-btn-text').textContent = 'Pause';
+
+    runPlaybackStep();
+  }
+
+  function stopPlayback() {
+    isPlaying = false;
+    if (playTimer) clearTimeout(playTimer);
+    document.getElementById('play-btn-icon').textContent = '▶';
+    document.getElementById('play-btn-text').textContent = 'Play';
+  }
+
+  function togglePlayback() {
+    if (isPlaying) stopPlayback();
+    else startPlayback();
+  }
+
+  function runPlaybackStep() {
+    if (!isPlaying) return;
+
+    const slider = document.getElementById('time-slider');
+    const speed = parseFloat(document.getElementById('speed-select').value);
+    let val = parseFloat(slider.value) + (2 * speed);
+
+    if (val >= 1000) {
+      slider.value = 1000;
+      processSpatiotemporalModel();
+      stopPlayback();
+      return;
+    }
+
+    slider.value = val;
+    processSpatiotemporalModel();
+
+    // 50ms refresh tick rate
+    playTimer = setTimeout(runPlaybackStep, 50);
+  }
+
+  function stepFrame(delta) {
+    stopPlayback();
+    const slider = document.getElementById('time-slider');
+    let val = Math.min(1000, Math.max(0, parseFloat(slider.value) + delta));
+    slider.value = val;
+    processSpatiotemporalModel();
+  }
+
   async function loadData() {
+    stopPlayback();
     const mode = document.getElementById('data-mode-select').value;
     
     if (mode === 'historical') {
@@ -529,7 +675,7 @@
       const times = allFeatures.map(f => f.properties.time).filter(t => t != null);
       minTimeMs = Math.min(...times);
       maxTimeMs = Math.max(...times);
-      document.getElementById('time-slider').value = 1000;
+      document.getElementById('time-slider').value = 0;
     } else {
       minTimeMs = 0;
       maxTimeMs = 0;
@@ -537,6 +683,16 @@
 
     processSpatiotemporalModel();
   }
+
+  // Event Bindings
+  document.getElementById('play-pause-btn').addEventListener('click', togglePlayback);
+  document.getElementById('step-prev-btn').addEventListener('click', () => stepFrame(-10));
+  document.getElementById('step-next-btn').addEventListener('click', () => stepFrame(10));
+
+  document.getElementById('time-slider').addEventListener('input', () => {
+    stopPlayback();
+    processSpatiotemporalModel();
+  });
 
   document.getElementById('data-mode-select').addEventListener('change', (e) => {
     const isHist = e.target.value === 'historical';
@@ -548,7 +704,6 @@
   document.getElementById('fetch-hist-btn').addEventListener('click', loadData);
   document.getElementById('feed-select').addEventListener('change', loadData);
 
-  document.getElementById('time-slider').addEventListener('input', processSpatiotemporalModel);
   document.getElementById('window-slider').addEventListener('input', (e) => {
     document.getElementById('window-val').textContent = `${e.target.value} Days`;
     processSpatiotemporalModel();
