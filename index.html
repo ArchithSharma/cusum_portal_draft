@@ -71,7 +71,6 @@
       margin-top: 4px;
     }
     button.btn-primary:hover { background: #1d4ed8; }
-    button.btn-primary:disabled { background: #475569; cursor: not-allowed; }
 
     .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #cbd5e1; cursor: pointer; }
     .checkbox-group input { width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer; }
@@ -89,14 +88,14 @@
     }
 
     .status-msg {
-      font-size: 0.75rem;
-      color: #e2e8f0;
-      padding: 6px;
-      border-radius: 4px;
+      font-size: 0.78rem;
+      padding: 10px;
+      border-radius: 6px;
       display: none;
+      line-height: 1.4;
     }
-    .status-msg.loading { display: block; background: #1e3a8a; color: #93c5fd; }
-    .status-msg.error { display: block; background: #7f1d1d; color: #fca5a5; }
+    .status-msg.loading { display: block; background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6; }
+    .status-msg.error { display: block; background: #450a0a; color: #fca5a5; border: 1px solid #ef4444; }
 
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .stats-card { 
@@ -138,8 +137,8 @@
   <div class="control-group">
     <label class="section-title">Data Fetching Mode</label>
     <select id="data-mode-select">
+      <option value="historical" selected>Custom Historical API Query</option>
       <option value="realtime">Real-time Summary Feeds (Recent)</option>
-      <option value="historical" selected>Custom Multi-Year Historical API</option>
     </select>
   </div>
 
@@ -160,7 +159,7 @@
     <div class="grid-2col">
       <div>
         <span style="font-size: 0.72rem; color: #aaa;">Start Date</span>
-        <input type="date" id="hist-start" value="2015-01-01">
+        <input type="date" id="hist-start" value="2023-01-01">
       </div>
       <div>
         <span style="font-size: 0.72rem; color: #aaa;">End Date</span>
@@ -168,10 +167,10 @@
       </div>
     </div>
     <div style="margin-top: 4px;">
-      <span style="font-size: 0.72rem; color: #aaa;">Min Magnitude (Recommended M4.5+ for multi-year)</span>
-      <input type="number" id="hist-min-mag" value="4.5" step="0.5" min="0" max="10">
+      <span style="font-size: 0.72rem; color: #aaa;">Min Magnitude (M5.0+ recommended for 2+ yrs)</span>
+      <input type="number" id="hist-min-mag" value="5.0" step="0.5" min="0" max="10">
     </div>
-    <button id="fetch-hist-btn" class="btn-primary">Query USGS Historical Database</button>
+    <button id="fetch-hist-btn" class="btn-primary">Query USGS Database</button>
   </div>
 
   <div id="status-msg" class="status-msg"></div>
@@ -186,12 +185,12 @@
   <div class="control-group">
     <div class="label-val">
       <span>Observation Window ($T_{window}$)</span>
-      <span id="window-val">30 Days</span>
+      <span id="window-val">60 Days</span>
     </div>
-    <input type="range" id="window-slider" min="1" max="180" value="30" step="1">
+    <input type="range" id="window-slider" min="1" max="180" value="60" step="1">
   </div>
 
-  <!-- Score Model Hyperparameters -->
+  <!-- Score Model Parameters -->
   <div class="control-group">
     <label class="section-title">Point Process Model Parameters ($\text{score.py}$)</label>
     
@@ -271,7 +270,7 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
 <script>
-  // 1. Map Base Layers
+  // Base Maps
   const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap &copy; CARTO',
     subdomains: 'abcd',
@@ -301,18 +300,15 @@
     "Satellite Imagery": satelliteLayer
   }).addTo(map);
 
-  // Map Layer Groups
   const quakeLayer = L.layerGroup().addTo(map);
   const cusumAnomalyLayer = L.layerGroup().addTo(map);
   let heatLayer = null;
   let tectonicLayer = null;
 
-  // State Management
   let allFeatures = [];
   let minTimeMs = 0;
   let maxTimeMs = 0;
 
-  // 2. Fetch Tectonic Boundaries
   async function loadTectonicPlates() {
     try {
       const response = await fetch('https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json');
@@ -328,7 +324,6 @@
     }
   }
 
-  // 3. Status Notification Helper
   function showStatus(msg, isError = false) {
     const el = document.getElementById('status-msg');
     el.className = `status-msg ${isError ? 'error' : 'loading'}`;
@@ -340,19 +335,30 @@
     document.getElementById('status-msg').style.display = 'none';
   }
 
-  // 4. API Fetching Logic
+  // Robust USGS Historical Fetch Engine
   async function fetchUSGSHistorical(startDate, endDate, minMag) {
-    showStatus(`Fetching historical events from USGS (${startDate} to ${endDate})...`);
-    const url = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${startDate}&endtime=${endDate}&minmagnitude=${minMag}&eventtype=earthquake&orderby=time-asc`;
+    showStatus(`Querying USGS Database (${startDate} to ${endDate}, M >= ${minMag})...`);
+    
+    const startIso = `${startDate}T00:00:00`;
+    const endIso = `${endDate}T23:59:59`;
+    const url = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${startIso}&endtime=${endIso}&minmagnitude=${minMag}&eventtype=earthquake&orderby=time-asc&limit=20000`;
     
     try {
       const response = await fetch(url);
-      if (!response.ok) throw new Error(`USGS API Error: ${response.statusText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP ${response.status}`);
+      }
       const data = await response.json();
       hideStatus();
+
+      if (data.features && data.features.length >= 20000) {
+        showStatus(`Warning: Max 20,000 event query limit reached. Narrow the date range or increase minimum magnitude for complete coverage.`, true);
+      }
+
       return (data.features || []).filter(f => f.geometry && f.geometry.coordinates);
     } catch (err) {
-      showStatus(`Error loading historical data: ${err.message}`, true);
+      showStatus(`USGS Query Rejected: ${err.message}`, true);
       return [];
     }
   }
@@ -362,16 +368,16 @@
     const url = `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${feedType}.geojson`;
     try {
       const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       hideStatus();
       return (data.features || []).filter(f => f.geometry && f.geometry.coordinates);
     } catch (err) {
-      showStatus(`Error fetching real-time feed: ${err.message}`, true);
+      showStatus(`Error fetching feed: ${err.message}`, true);
       return [];
     }
   }
 
-  // 5. Point Process Engine Execution
   function processSpatiotemporalModel() {
     quakeLayer.clearLayers();
     cusumAnomalyLayer.clearLayers();
@@ -379,7 +385,6 @@
 
     if (allFeatures.length === 0) return;
 
-    // Time Scrubbing Calculations
     const sliderVal = parseFloat(document.getElementById('time-slider').value);
     const sliderPercent = sliderVal / 1000;
     const windowDays = parseFloat(document.getElementById('window-slider').value);
@@ -388,12 +393,10 @@
     const currentEndTimeMs = minTimeMs + sliderPercent * (maxTimeMs - minTimeMs);
     const currentStartTimeMs = currentEndTimeMs - windowMs;
 
-    // Update Time Scrubbing Display
     document.getElementById('time-display-text').innerHTML = 
       `<b>Start:</b> ${new Date(currentStartTimeMs).toISOString().replace('T', ' ').slice(0, 16)} UTC<br/>` +
       `<b>End:  </b> ${new Date(currentEndTimeMs).toISOString().replace('T', ' ').slice(0, 16)} UTC`;
 
-    // Filter Features inside historical observation window
     const activeFeatures = allFeatures.filter(f => {
       const t = f.properties.time;
       return t >= currentStartTimeMs && t <= currentEndTimeMs;
@@ -401,7 +404,6 @@
 
     document.getElementById('stat-active-events').textContent = activeFeatures.length;
 
-    // Point Process Parameters
     const muBaseline = (parseFloat(document.getElementById('mu-slider').value) * 1000);
     const lambdaBandwidth = parseFloat(document.getElementById('lambda-slider').value);
     const hMultiplier = parseFloat(document.getElementById('h-slider').value);
@@ -417,7 +419,6 @@
       
       const energy = Math.pow(10, 1.5 * mag);
 
-      // Render Individual Marker
       const radius = Math.max(3, mag * 2.2);
       const circle = L.circleMarker([lat, lon], {
         radius: radius,
@@ -436,10 +437,8 @@
       `);
       circle.addTo(quakeLayer);
 
-      // Kernel Heatmap Point
       heatPoints.push([lat, lon, Math.log10(energy + 1)]);
 
-      // Spatial Binning
       const latBin = Math.floor(lat / gridDeg) * gridDeg;
       const lonBin = Math.floor(lon / gridDeg) * gridDeg;
       const key = `${latBin},${lonBin}`;
@@ -454,7 +453,6 @@
       spatialGrid[key].energies.push(energy);
     });
 
-    // 6. Kernel Density Heatmap Layer
     if (document.getElementById('toggle-heatmap').checked && heatPoints.length > 0) {
       heatLayer = L.heatLayer(heatPoints, {
         radius: lambdaBandwidth,
@@ -464,7 +462,6 @@
       }).addTo(map);
     }
 
-    // 7. CUSUM Detection Engine
     let anomalyCount = 0;
     if (document.getElementById('toggle-anomalies').checked) {
       Object.values(spatialGrid).forEach(bin => {
@@ -515,7 +512,6 @@
     document.getElementById('stat-anomalies').textContent = anomalyCount;
   }
 
-  // 8. Dynamic Data Loader
   async function loadData() {
     const mode = document.getElementById('data-mode-select').value;
     
@@ -542,7 +538,6 @@
     processSpatiotemporalModel();
   }
 
-  // 9. UI Mode Toggles & Event Listeners
   document.getElementById('data-mode-select').addEventListener('change', (e) => {
     const isHist = e.target.value === 'historical';
     document.getElementById('historical-controls').style.display = isHist ? 'flex' : 'none';
@@ -585,7 +580,6 @@
   document.getElementById('toggle-heatmap').addEventListener('change', processSpatiotemporalModel);
   document.getElementById('toggle-anomalies').addEventListener('change', processSpatiotemporalModel);
 
-  // Initialize
   loadTectonicPlates();
   loadData();
 </script>
