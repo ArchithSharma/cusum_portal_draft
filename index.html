@@ -255,7 +255,7 @@
       <span>Kernel Bandwidth ($\lambda$)</span>
       <span id="lambda-val">25 km</span>
     </div>
-    <input type="range" id="lambda-slider" min="10" max="80" value="25" step="5">
+    <input type="range" id="lambda-slider" min="10" max="100" value="25" step="5">
 
     <div class="label-val">
       <span>Decision Threshold ($h$)</span>
@@ -268,8 +268,8 @@
   <div class="control-group">
     <label class="section-title">Map Layers & Overlays</label>
     <label class="checkbox-group">
-      <input type="checkbox" id="toggle-tectonic" checked>
-      <span>Tectonic Plate Boundaries</span>
+      <input type="checkbox" id="toggle-quakes" checked>
+      <span>Individual Earthquake Markers</span>
     </label>
     <label class="checkbox-group">
       <input type="checkbox" id="toggle-heatmap" checked>
@@ -278,6 +278,10 @@
     <label class="checkbox-group">
       <input type="checkbox" id="toggle-anomalies" checked>
       <span>CUSUM Spatiotemporal Anomaly Circles</span>
+    </label>
+    <label class="checkbox-group">
+      <input type="checkbox" id="toggle-tectonic" checked>
+      <span>Tectonic Plate Boundaries</span>
     </label>
   </div>
 
@@ -325,6 +329,7 @@
     <button id="step-prev-btn" class="playbar-btn secondary" title="Step Backward">⏮</button>
     <button id="step-next-btn" class="playbar-btn secondary" title="Step Forward">⏭</button>
 
+    <!-- Time Slider Bar for interactive scrubbing -->
     <div class="timeline-slider-container">
       <input type="range" id="time-slider" min="0" max="1000" value="1000">
     </div>
@@ -351,15 +356,15 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
 <script>
-  // Map Setup
-  const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  // Keyless Reliable Base Maps
+  const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap &copy; CARTO',
     subdomains: 'abcd',
     maxZoom: 19
   });
 
-  const terrainLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Tiles &copy; Esri',
+  const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19
   });
 
@@ -377,7 +382,7 @@
 
   L.control.layers({
     "Dark Canvas": darkLayer,
-    "Terrain & Topo": terrainLayer,
+    "OpenStreetMap": osmLayer,
     "Satellite Imagery": satelliteLayer
   }, null, { position: 'topright' }).addTo(map);
 
@@ -390,9 +395,18 @@
   let minTimeMs = 0;
   let maxTimeMs = 0;
 
-  // Playbar State Variables
+  // Playbar State
   let isPlaying = false;
   let playTimer = null;
+
+  // Helper: Converts Geographic Bandwidth (in km) to dynamic pixel radius based on Zoom Level & Latitude
+  function kmToPixels(km) {
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    const metersPerPixel = (156543.03392 * Math.cos(center.lat * Math.PI / 180)) / Math.pow(2, zoom);
+    const pixelRadius = (km * 1000) / metersPerPixel;
+    return Math.max(8, Math.min(150, pixelRadius));
+  }
 
   async function loadTectonicPlates() {
     try {
@@ -420,7 +434,6 @@
     document.getElementById('status-msg').style.display = 'none';
   }
 
-  // Fetch API Logic
   async function fetchUSGSHistorical(startDate, endDate, minMag) {
     showStatus(`Querying USGS Database (${startDate} to ${endDate}, M >= ${minMag})...`);
     stopPlayback();
@@ -465,7 +478,7 @@
     }
   }
 
-  // Main Execution & Point Process Calculation
+  // Core Point Process Execution Engine
   function processSpatiotemporalModel() {
     quakeLayer.clearLayers();
     cusumAnomalyLayer.clearLayers();
@@ -481,7 +494,6 @@
     const currentEndTimeMs = minTimeMs + sliderPercent * (maxTimeMs - minTimeMs);
     const currentStartTimeMs = currentEndTimeMs - windowMs;
 
-    // Display formatted time on Playbar
     document.getElementById('time-display-text').innerHTML = 
       `<span><b>Start:</b> ${new Date(currentStartTimeMs).toISOString().replace('T', ' ').slice(0, 16)}</span>` +
       `<span><b>End:  </b> ${new Date(currentEndTimeMs).toISOString().replace('T', ' ').slice(0, 16)}</span>`;
@@ -494,8 +506,9 @@
     document.getElementById('stat-active-events').textContent = activeFeatures.length;
 
     const muBaseline = (parseFloat(document.getElementById('mu-slider').value) * 1000);
-    const lambdaBandwidth = parseFloat(document.getElementById('lambda-slider').value);
+    const lambdaKm = parseFloat(document.getElementById('lambda-slider').value);
     const hMultiplier = parseFloat(document.getElementById('h-slider').value);
+    const showQuakeMarkers = document.getElementById('toggle-quakes').checked;
 
     const heatPoints = [];
     const spatialGrid = {};
@@ -508,23 +521,26 @@
       
       const energy = Math.pow(10, 1.5 * mag);
 
-      const radius = Math.max(3, mag * 2.2);
-      const circle = L.circleMarker([lat, lon], {
-        radius: radius,
-        fillColor: '#38bdf8',
-        color: '#0284c7',
-        weight: 1,
-        fillOpacity: 0.6
-      }).bindPopup(`
-        <div style="font-size:0.85rem;">
-          <strong style="color:#0284c7;">${f.properties.place || 'Unknown Location'}</strong><br/>
-          <b>Magnitude:</b> M ${mag}<br/>
-          <b>Depth:</b> ${depth} km<br/>
-          <b>Energy Release:</b> ${energy.toExponential(2)} J<br/>
-          <b>Observation Timestamp:</b> ${new Date(eventTime).toUTCString()}
-        </div>
-      `);
-      circle.addTo(quakeLayer);
+      // Render Quake Circle Marker conditionally
+      if (showQuakeMarkers) {
+        const radius = Math.max(3, mag * 2.2);
+        const circle = L.circleMarker([lat, lon], {
+          radius: radius,
+          fillColor: '#38bdf8',
+          color: '#0284c7',
+          weight: 1,
+          fillOpacity: 0.6
+        }).bindPopup(`
+          <div style="font-size:0.85rem;">
+            <strong style="color:#0284c7;">${f.properties.place || 'Unknown Location'}</strong><br/>
+            <b>Magnitude:</b> M ${mag}<br/>
+            <b>Depth:</b> ${depth} km<br/>
+            <b>Energy Release:</b> ${energy.toExponential(2)} J<br/>
+            <b>Observation Timestamp:</b> ${new Date(eventTime).toUTCString()}
+          </div>
+        `);
+        circle.addTo(quakeLayer);
+      }
 
       heatPoints.push([lat, lon, Math.log10(energy + 1)]);
 
@@ -542,15 +558,18 @@
       spatialGrid[key].energies.push(energy);
     });
 
+    // Render Kernel Heatmap with Geographically Constant Bandwidth
     if (document.getElementById('toggle-heatmap').checked && heatPoints.length > 0) {
+      const dynamicPixelRadius = kmToPixels(lambdaKm);
       heatLayer = L.heatLayer(heatPoints, {
-        radius: lambdaBandwidth,
-        blur: 18,
-        maxZoom: 10,
+        radius: dynamicPixelRadius,
+        blur: Math.max(5, dynamicPixelRadius * 0.7),
+        maxZoom: 18,
         gradient: { 0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' }
       }).addTo(map);
     }
 
+    // Compute CUSUM Risk Anomalies
     let anomalyCount = 0;
     if (document.getElementById('toggle-anomalies').checked) {
       Object.values(spatialGrid).forEach(bin => {
@@ -601,7 +620,7 @@
     document.getElementById('stat-anomalies').textContent = anomalyCount;
   }
 
-  // Playbar Control Logic
+  // Playback Control Logic
   function startPlayback() {
     if (isPlaying) return;
     const slider = document.getElementById('time-slider');
@@ -645,7 +664,6 @@
     slider.value = val;
     processSpatiotemporalModel();
 
-    // 50ms refresh tick rate
     playTimer = setTimeout(runPlaybackStep, 50);
   }
 
@@ -684,12 +702,21 @@
     processSpatiotemporalModel();
   }
 
+  // Map Zoom & Move Listener to keep Kernel Bandwidth physically constant
+  map.on('zoomend moveend', () => {
+    if (document.getElementById('toggle-heatmap').checked) {
+      processSpatiotemporalModel();
+    }
+  });
+
   // Event Bindings
   document.getElementById('play-pause-btn').addEventListener('click', togglePlayback);
   document.getElementById('step-prev-btn').addEventListener('click', () => stepFrame(-10));
   document.getElementById('step-next-btn').addEventListener('click', () => stepFrame(10));
 
-  document.getElementById('time-slider').addEventListener('input', () => {
+  // Timeline slider scrubbing
+  const timeSlider = document.getElementById('time-slider');
+  timeSlider.addEventListener('input', () => {
     stopPlayback();
     processSpatiotemporalModel();
   });
@@ -725,15 +752,16 @@
     processSpatiotemporalModel();
   });
 
+  document.getElementById('toggle-quakes').addEventListener('change', processSpatiotemporalModel);
+  document.getElementById('toggle-heatmap').addEventListener('change', processSpatiotemporalModel);
+  document.getElementById('toggle-anomalies').addEventListener('change', processSpatiotemporalModel);
+  
   document.getElementById('toggle-tectonic').addEventListener('change', (e) => {
     if (tectonicLayer) {
       if (e.target.checked) map.addLayer(tectonicLayer);
       else map.removeLayer(tectonicLayer);
     }
   });
-
-  document.getElementById('toggle-heatmap').addEventListener('change', processSpatiotemporalModel);
-  document.getElementById('toggle-anomalies').addEventListener('change', processSpatiotemporalModel);
 
   loadTectonicPlates();
   loadData();
